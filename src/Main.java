@@ -1,5 +1,6 @@
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.util.Random;
 
 public class Main {
 
@@ -14,19 +15,23 @@ public class Main {
         // data.value is initialized as 0
         Data data = new Data();
 
+        Random rand = new Random();
+
         try {
             ServerSocket ss = new ServerSocket(9090);
+            Info info = new Info(0, 1000, 6, 5000);
 
             // example: how I will call your protocol
-            ProtocolMode pm = new NoPhase(addressBook, data);
-            int blockingTimes = pm.execute(ss, lock);
+            ProtocolMode pm = new NoPhase(addressBook, data, ss, lock, info);
+            boolean success = pm.write(rand.nextInt(10000));
+            if (success) {
+                // do something;
+            } else {
+                // do something;
+            }
 
         } catch (IOException e) {
             System.out.println(e);
         }
-
-
-
-
     }
 }
