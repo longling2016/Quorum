@@ -23,7 +23,7 @@ public class ListeningThread implements Runnable {
 
                 String message = dIn.readUTF();
 
-                // TODO: do whatever you want to the message
+                Node.listen(message);
             }
 
         } catch (IOException e) {
