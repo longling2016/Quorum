@@ -36,7 +36,7 @@ public class TwoPhase implements ProtocolMode {
         // increment blockingCounter every time when a blocking is detected
         int blockingCounter = 0;
 
-        // TODO: simulate random crash
+        // TODO: simulate random crash, Please remember to change the ifCrash boolean in info before crash and after recovery
         // TODO: handle situation for random crash
         // TODO: detect blocking
 
