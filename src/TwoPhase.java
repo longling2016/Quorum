@@ -40,14 +40,6 @@ public class TwoPhase implements ProtocolMode {
         // TODO: handle situation for random crash
         // TODO: detect blocking
 
-        /** You may use the ListeningThread class I created to create a individual thread to keep listening to
-         the server socket, the message received can be processed in this thread.
-
-         But I am pretty sure you can have so many other ways to do the same thing :)
-         */
-        Thread thread = new Thread(new ListeningThread(ss));
-        thread.start();
-
         info.blockingCounter = blockingCounter;
         return true;
     }
