@@ -27,11 +27,11 @@ public class NoPhase implements ProtocolMode {
     static Lock lock;
     static Info info;
     static Address monitor;
-    static boolean quorum = false;
     static int quorumCounter = 0;
     static int localPort = 0;
     static String localIP = null;
     static HashSet<QuorumBook> quorumSet = new HashSet<>();
+    Thread noPhaseThread;
 
     /**
      * addressBook has the addresses for all nodes in cluster, check address class
@@ -57,22 +57,28 @@ public class NoPhase implements ProtocolMode {
             e.printStackTrace();
         }
     }
-    
+
     /** Return boolean to indicate of the write operation is successful or not.
      */
 
     public void execute() {
-        Thread noPhaseThread = new Thread(new NoPhaseThread(ss));
+        noPhaseThread = new Thread(new NoPhaseThread(ss));
         noPhaseThread.start();
 
         // increment blockingCounter every time when a blocking is detected
         int blockingCounter = 0;
-
         info.blockingCounter = blockingCounter;
+        // TODO: simulate random crash, Please remember to change the ifCrash boolean in info before crash and after recovery
+        // TODO: handle situation for random crash
+        // TODO: detect blocking
     }
 
-    public void end(){
-
+    public void end() {
+        try {
+            noPhaseThread.interrupt();
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        }
     }
 
     public static void noPhaseListen(String message) {
@@ -103,11 +109,6 @@ public class NoPhase implements ProtocolMode {
             } else {// Crash
                 Thread crashThread = new Thread(new CrashWaitingThread(info.crashDuration));
                 crashThread.start();
-//                try {// wait the crash to recover
-//                    crashThread.join();
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                }
             }
         } else if (message.substring(0, 5).equals("write")) {
             String valueString= message.substring(5);
@@ -121,6 +122,8 @@ public class NoPhase implements ProtocolMode {
     }
 
     public static boolean doNoPhase(String value) {
+        boolean crash = false;
+        lock.status = true;// lock myself.
         if (getQuorum(addressBook, info)) {
             /**
              * Nodes in quorumSet are selected, then send unlock to other nodes
@@ -139,6 +142,7 @@ public class NoPhase implements ProtocolMode {
                 } else {// Crash
                     Thread crashThread = new Thread(new CrashWaitingThread(info.crashDuration));
                     crashThread.start();
+                    crash = true;
                     break;// sending terminate
                 }
             }
@@ -150,22 +154,20 @@ public class NoPhase implements ProtocolMode {
          * Unlock all nodes
          */
         broadcast("unlk", addressBook);
-        return true;
+        lock.status = false;// unlock myself.
+        /**
+         *
+         */
+        if (crash == false) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public static void commit(String value) {
         data.value = Integer.parseInt(value);
     }
-
-//    private static void crash(Info info) {
-//        info.ifCrash = true;
-//        try {
-//            Thread.sleep(info.crashDuration);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
-//        info.ifCrash = false;
-//    }
 
 
     /**
@@ -188,13 +190,16 @@ public class NoPhase implements ProtocolMode {
     }
 
     /**
-     * Broadcast to all hosts
+     * Broadcast to all hosts, expect myself
      * @param message
      * @param addressBook
      */
     public static void broadcast(String message, Address[] addressBook) {
         try {
             for (Address each : addressBook) {
+                if (each.ip.equals(localIP) && each.port == localPort) {// skip myself
+                    continue;
+                }
                 Socket s = new Socket(each.ip, each.port);
                 DataOutputStream dOut = new DataOutputStream(s.getOutputStream());
                 dOut.writeUTF(message);
@@ -214,9 +219,8 @@ public class NoPhase implements ProtocolMode {
      * @return
      */
     private static boolean getQuorum(Address[] addressBook, Info info) {
-        quorum = false;// Initialize to false
         quorumCounter = 0;
-        broadcast("getq", addressBook);
+        broadcast("getq@" + localIP + "@" + localPort, addressBook);
         try {
             Thread.sleep(200);
         } catch (InterruptedException e) {

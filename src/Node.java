@@ -112,6 +112,9 @@ public class Node {
         } else if (message.equals("block?")) {
             sm.send("block" + info.blockingCounter);
 
+        } else if (message.equals("end")) {
+            pm.end();
+
         } else {
             System.out.println("Received wrong message: " + message);
         }
