@@ -5,4 +5,5 @@ import java.net.ServerSocket;
  */
 public interface ProtocolMode {
     void execute();
+    void end();
 }

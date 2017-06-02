@@ -46,5 +46,9 @@ public class ThreePhase implements ProtocolMode {
         info.blockingCounter = blockingCounter;
     }
 
+    public void end(){
+
+    }
+
 }
 

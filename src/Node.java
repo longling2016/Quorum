@@ -23,7 +23,7 @@ public class Node {
 
     // config: TODO modify
     static final int crashRate = 1000;
-    static final int writingQuorum = 3;
+    static final int writingQuorum = 2;
     static final int crashDuration = 2000;
 
     public static void main(String[] args) {
