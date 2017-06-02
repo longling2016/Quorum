@@ -9,6 +9,7 @@ public class Node {
     static Address[] addressBook;
     static String ip;
     static int portM;
+    static int port;
     static SendToMonitor sm;
     static ProtocolMode pm;
     static ServerSocket ssM;
@@ -18,6 +19,12 @@ public class Node {
     static Info info;
     static String monitorIP;
     static int monitorPort;
+    static int nodeID;
+
+    // config: TODO modify
+    static final int crashRate = 1000;
+    static final int writingQuorum = 3;
+    static final int crashDuration = 2000;
 
     public static void main(String[] args) {
         try {
@@ -32,17 +39,12 @@ public class Node {
             thread.start();
 
             ss = new ServerSocket(0);
-            int port = ss.getLocalPort();
+            port = ss.getLocalPort();
             System.out.println("IP & port for Nodes communication: " + ip + " " + port);
-
-
-
-
 
         } catch (IOException e) {
             System.out.println(e);
         }
-
 
     }
 
@@ -62,7 +64,11 @@ public class Node {
             addressBook = new Address[list.length];
             for (int i = 0; i < list.length; i ++) {
                 String[] info = list[i].split(" ");
-                addressBook[i] = new Address(i, info[0], Integer.parseInt(info[1]));
+                int curPort = Integer.parseInt(info[1]);
+                addressBook[i] = new Address(i, info[0], curPort);
+                if (info[0].equals(ip) && curPort == port) {
+                    nodeID = i;
+                }
             }
             System.out.println("Get address book from monitor.");
 
@@ -70,7 +76,7 @@ public class Node {
             // test on no-phase protocol
             data = new Data();
             lock = new Lock();
-            info = new Info(0, 1000, 6, 2000, false);
+            info = new Info(0, crashRate, writingQuorum, crashDuration, false);
             pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
             pm.execute();
             System.out.println("Start testing on no-phase protocol.");
@@ -79,7 +85,7 @@ public class Node {
             // test on two-phase protocol
             data = new Data();
             lock = new Lock();
-            info = new Info(0, 1000, 6, 2000, false);
+            info = new Info(0, crashRate, writingQuorum, crashDuration, false);
             pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
             pm.execute();
             System.out.println("Start testing on two-phase protocol.");
@@ -88,7 +94,7 @@ public class Node {
             // test on three-phase protocol
             data = new Data();
             lock = new Lock();
-            info = new Info(0, 1000, 6, 2000, false);
+            info = new Info(0, crashRate, writingQuorum, crashDuration, false);
             pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
             pm.execute();
             System.out.println("Start testing on three-phase protocol.");
@@ -99,10 +105,16 @@ public class Node {
             } else {
                 sm.send("ack");
             }
-        } else if (message.equals("read")) {
-            sm.send(Integer.toString(data.value));
-        }
 
+        } else if (message.equals("read")) {
+            sm.send("value" + nodeID + ":" + Integer.toString(data.value));
+
+        } else if (message.equals("block?")) {
+            sm.send("block" + info.blockingCounter);
+
+        } else {
+            System.out.println("Received wrong message: " + message);
+        }
 
     }
 
