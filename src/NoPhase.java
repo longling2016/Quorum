@@ -10,6 +10,7 @@ public class NoPhase implements ProtocolMode {
     ServerSocket ss;
     Lock lock;
     Info info;
+    Address monitor;
 
     /**
      * addressBook has the addresses for all nodes in cluster, check address class
@@ -21,18 +22,19 @@ public class NoPhase implements ProtocolMode {
      * info please check Info class for details.
      */
 
-    public NoPhase(Address[] addressBook, Data data, ServerSocket ss, Lock lock, Info info) {
+    public NoPhase(Address[] addressBook, Data data, ServerSocket ss, Lock lock, Info info, Address monitor) {
         this.addressBook = addressBook;
         this.data = data;
         this.ss = ss;
         this.lock = lock;
         this.info = info;
+        this.monitor = monitor;
     }
 
     /** Return boolean to indicate of the write operation is successful or not.
      */
 
-    public boolean write(int updateValue) {
+    public void execute() {
 
         // increment blockingCounter every time when a blocking is detected
         int blockingCounter = 0;
@@ -43,7 +45,6 @@ public class NoPhase implements ProtocolMode {
 
 
         info.blockingCounter = blockingCounter;
-        return true;
     }
 
 }

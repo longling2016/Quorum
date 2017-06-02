@@ -8,35 +8,36 @@ public class Node {
 
     static Address[] addressBook;
     static String ip;
-    static int port;
+    static int portM;
     static SendToMonitor sm;
     static ProtocolMode pm;
+    static ServerSocket ssM;
     static ServerSocket ss;
-
     static Data data;
     static Lock lock;
     static Info info;
+    static String monitorIP;
+    static int monitorPort;
 
     public static void main(String[] args) {
         try {
             ip = InetAddress.getLocalHost().getHostAddress();
 
-            ss = new ServerSocket(0);
-            port = ss.getLocalPort();
+            ssM = new ServerSocket(0);
+            portM = ssM.getLocalPort();
 
-            System.out.println("IP & port: " + ip + " " + port);
+            System.out.println("IP & port for Monitor: " + ip + " " + portM);
 
-            Thread thread = new Thread(new ListeningThread(ss));
+            Thread thread = new Thread(new ListeningThread(ssM));
             thread.start();
 
-            Random rand = new Random();
+            ss = new ServerSocket(0);
+            int port = ss.getLocalPort();
+            System.out.println("IP & port for Nodes communication: " + ip + " " + port);
 
 
 
-            int runningCounter = 0;
-            while (runningCounter < 10) {
-                boolean success = pm.write(rand.nextInt(10000));
-            }
+
 
         } catch (IOException e) {
             System.out.println(e);
@@ -50,8 +51,8 @@ public class Node {
         if (message.length() > 3 && message.substring(0, 4).equals("moni")) {
             message = message.substring(4, message.length());
             String[] info = message.split(" ");
-            String monitorIP = info[0];
-            int monitorPort = Integer.parseInt(info[1]);
+            monitorIP = info[0];
+            monitorPort = Integer.parseInt(info[1]);
             sm = new SendToMonitor(monitorIP, monitorPort);
             System.out.println("Get Monitor ip and port.");
 
@@ -70,7 +71,8 @@ public class Node {
             data = new Data();
             lock = new Lock();
             info = new Info(0, 1000, 6, 2000, false);
-            pm = new NoPhase(addressBook, data, ss, lock, info);
+            pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
+            pm.execute();
             System.out.println("Start testing on no-phase protocol.");
 
         } else if (message.equals("twoP")) {
@@ -78,7 +80,8 @@ public class Node {
             data = new Data();
             lock = new Lock();
             info = new Info(0, 1000, 6, 2000, false);
-            pm = new TwoPhase(addressBook, data, ss, lock, info);
+            pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
+            pm.execute();
             System.out.println("Start testing on two-phase protocol.");
 
         } else if (message.equals("threeP")) {
@@ -86,7 +89,8 @@ public class Node {
             data = new Data();
             lock = new Lock();
             info = new Info(0, 1000, 6, 2000, false);
-            pm = new ThreePhase(addressBook, data, ss, lock, info);
+            pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
+            pm.execute();
             System.out.println("Start testing on three-phase protocol.");
 
         } else if (message.equals("ping")) {
