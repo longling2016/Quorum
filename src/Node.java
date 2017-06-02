@@ -99,14 +99,8 @@ public class Node {
             } else {
                 sm.send("ack");
             }
-        } else if (message.length() > 4 && message.substring(0, 5).equals("write")) {
-            int value = Integer.parseInt(message.substring(5, message.length()));
-            boolean success = pm.write(value);
-            if (success) {
-                sm.send("success");
-            } else {
-                sm.send("fail");
-            }
+        } else if (message.equals("read")) {
+            sm.send(Integer.toString(data.value));
         }
 
 
