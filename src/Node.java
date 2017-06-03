@@ -20,10 +20,10 @@ public class Node {
     static String monitorIP;
     static int monitorPort;
     static int nodeID;
+    static int writingQuorum;
 
     // config: TODO modify
-    static final int crashRate = 1000;
-    static final int writingQuorum = 2;
+    static final int crashRate = 5;
     static final int crashDuration = 2000;
 
     public static void main(String[] args) {
@@ -114,6 +114,9 @@ public class Node {
 
         } else if (message.equals("end")) {
             pm.end();
+
+        } else if (message.length() > 5 && message.substring(0, 6).equals("quorum")) {
+           writingQuorum = Integer.parseInt(message.substring(6, message.length()));
 
         } else {
             System.out.println("Received wrong message: " + message);
