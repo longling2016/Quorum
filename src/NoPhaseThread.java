@@ -15,6 +15,7 @@ public class NoPhaseThread implements Runnable {
     }
 
     public void run() {
+        System.out.println("No Phase Thread is running.");
         DataInputStream dIn = null;
         Socket socket;
         try {
@@ -23,7 +24,7 @@ public class NoPhaseThread implements Runnable {
                 dIn = new DataInputStream(socket.getInputStream());
 
                 String message = dIn.readUTF();
-                System.out.println("No Phase Thread message: " + message);
+                System.out.println("No Phase received message: " + message);
                 NoPhase.noPhaseListen(message);
             }
         } catch (IOException e) {

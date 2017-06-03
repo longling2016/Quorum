@@ -21,6 +21,7 @@ public class Node {
     static int monitorPort;
     static int nodeID;
     static int writingQuorum;
+    static int phaseProtocol;
 
     // config: TODO modify
     static final int crashRate = 5;
@@ -41,6 +42,48 @@ public class Node {
             ss = new ServerSocket(0);
             port = ss.getLocalPort();
             System.out.println("IP & port for Nodes communication: " + ip + " " + port);
+
+            int counter = 0;
+
+            while (counter < 3) {
+                phaseProtocol = -1;
+                while (phaseProtocol == -1) {
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException e) {
+                        System.out.println(e);
+                    }
+                }
+
+                if (phaseProtocol == 0) {
+                    data = new Data();
+                    lock = new Lock();
+                    info = new Info(0, crashRate, writingQuorum, crashDuration, false);
+                    pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
+                    System.out.println("Start testing on no-phase protocol.");
+                    pm.execute();
+
+                } else if (phaseProtocol == 2) {
+                    data = new Data();
+                    lock = new Lock();
+                    info = new Info(0, crashRate, writingQuorum, crashDuration, false);
+                    pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
+                    System.out.println("Start testing on two-phase protocol.");
+                    pm.execute();
+
+                } else if (phaseProtocol == 3) {
+                    data = new Data();
+                    lock = new Lock();
+                    info = new Info(0, crashRate, writingQuorum, crashDuration, false);
+                    pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
+                    System.out.println("Start testing on three-phase protocol.");
+                    pm.execute();
+
+                } else {
+                    System.out.println("Illegal number of phaseProtocol = " + phaseProtocol);
+                }
+                counter --;
+            }
 
         } catch (IOException e) {
             System.out.println(e);
@@ -74,35 +117,22 @@ public class Node {
 
         } else if (message.equals("noP")) {
             // test on no-phase protocol
-            data = new Data();
-            lock = new Lock();
-            info = new Info(0, crashRate, writingQuorum, crashDuration, false);
-            pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
-            pm.execute();
-            System.out.println("Start testing on no-phase protocol.");
+            phaseProtocol = 0;
 
         } else if (message.equals("twoP")) {
             // test on two-phase protocol
-            data = new Data();
-            lock = new Lock();
-            info = new Info(0, crashRate, writingQuorum, crashDuration, false);
-            pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
-            pm.execute();
-            System.out.println("Start testing on two-phase protocol.");
+            phaseProtocol = 2;
 
         } else if (message.equals("threeP")) {
             // test on three-phase protocol
-            data = new Data();
-            lock = new Lock();
-            info = new Info(0, crashRate, writingQuorum, crashDuration, false);
-            pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
-            pm.execute();
-            System.out.println("Start testing on three-phase protocol.");
+           phaseProtocol = 3;
 
         } else if (message.equals("ping")) {
             if (info.ifCrash) {
+                System.out.println("send crash.");
                 sm.send("crash");
             } else {
+                System.out.println("send ack.");
                 sm.send("ack");
             }
 
