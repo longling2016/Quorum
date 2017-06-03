@@ -92,7 +92,7 @@ public class NoPhase implements ProtocolMode {
             }
         } else if (message.substring(0, 4).equals("qrgt")) {// Count how many nodes reply quorum granted
             String[] f = message.split("@");
-            if (NoPhase.quorumCounter < info.writingQuorum) {
+            if (NoPhase.quorumCounter + 1 < info.writingQuorum) {
                 NoPhase.quorumSet.add(new NoPhase.QuorumBook(f[1], Integer.parseInt(f[2])));
                 NoPhase.quorumCounter++;
             } else {
@@ -138,7 +138,8 @@ public class NoPhase implements ProtocolMode {
              */
             for(QuorumBook qSet:quorumSet){
                 if (new Random().nextInt(info.crashRate) != 0) {// Normal
-                    sendMessage("wrte@" + value, qSet.ip, qSet.port);
+                    commit(value);// write to myself
+                    sendMessage("wrte@" + value, qSet.ip, qSet.port);// send to other nodes in quorum
                 } else {// Crash
                     Thread crashThread = new Thread(new CrashWaitingThread(info.crashDuration));
                     crashThread.start();
@@ -226,7 +227,7 @@ public class NoPhase implements ProtocolMode {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        if (quorumCounter < info.writingQuorum) {// cannot get enough quorum
+        if (quorumCounter + 1 < info.writingQuorum) {// cannot get enough quorum, + 1 since plus myself
             return false;
         } else {
             return true;
