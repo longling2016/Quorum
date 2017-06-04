@@ -22,6 +22,7 @@ public class Node {
     static int nodeID;
     static int writingQuorum;
     static int phaseProtocol;
+    static final Object trigger = new Object();
 
     // config: TODO modify
     static final int crashRate = 5;
@@ -46,10 +47,14 @@ public class Node {
             int counter = 0;
 
             while (counter < 3) {
+
                 phaseProtocol = -1;
-                while (phaseProtocol == -1) {
+
+                synchronized(trigger) {
                     try {
-                        Thread.sleep(10);
+                        while (phaseProtocol == -1) {
+                            trigger.wait();
+                        }
                     } catch (InterruptedException e) {
                         System.out.println(e);
                     }
@@ -118,21 +123,30 @@ public class Node {
         } else if (message.equals("noP")) {
             // test on no-phase protocol
             phaseProtocol = 0;
+                synchronized (trigger) {
+                    trigger.notifyAll();
+            }
 
         } else if (message.equals("twoP")) {
             // test on two-phase protocol
             phaseProtocol = 2;
+            synchronized (trigger) {
+                trigger.notifyAll();
+            }
 
         } else if (message.equals("threeP")) {
             // test on three-phase protocol
            phaseProtocol = 3;
+            synchronized (trigger) {
+                trigger.notifyAll();
+            }
 
         } else if (message.equals("ping")) {
             if (info.ifCrash) {
-                System.out.println("send crash.");
+//                System.out.println("send crash.");
                 sm.send("crash");
             } else {
-                System.out.println("send ack.");
+//                System.out.println("send ack.");
                 sm.send("ack");
             }
 
