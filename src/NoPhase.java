@@ -36,6 +36,7 @@ public class NoPhase implements ProtocolMode {
     static String writingValue = null;
     static boolean startDo = false;
     static boolean terminate = false;
+    static final Object trigger = new Object();
 
     /**
      * addressBook has the addresses for all nodes in cluster, check address class
@@ -72,15 +73,13 @@ public class NoPhase implements ProtocolMode {
         // increment blockingCounter every time when a blocking is detected
         int blockingCounter = 0;
         info.blockingCounter = blockingCounter;
-        // TODO: simulate random crash, Please remember to change the ifCrash boolean in info before crash and after recovery
-        // TODO: handle situation for random crash
-        // TODO: detect blocking
-        System.out.println("Before while");
+
         while (!terminate) {
-            while (!startDo && !terminate) {
-                System.out.println("while inside looping...");
+            synchronized(trigger) {
                 try {
-                    Thread.sleep(100);
+                    while (!startDo && !terminate) {
+                        trigger.wait();
+                    }
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -98,6 +97,10 @@ public class NoPhase implements ProtocolMode {
         try {
             noPhaseThread.interrupt();
             terminate = true;
+            synchronized (trigger) {
+                trigger.notifyAll();
+            }
+            System.out.println("No Phase is complete.");
         } catch (SecurityException e) {
             e.printStackTrace();
         }
@@ -115,8 +118,6 @@ public class NoPhase implements ProtocolMode {
         } else if (message.substring(0, 4).equals("qrgt")) {// Count how many nodes reply quorum granted
             ackCounter++;
             String[] f = message.split("@");
-            System.out.println("NoPhase.quorumCounter + 1: " + (NoPhase.quorumCounter + 1));
-            System.out.println("writing quorum: " + info.writingQuorum);
             if (NoPhase.quorumCounter + 1 < info.writingQuorum) {
                 NoPhase.quorumSet.add(new NoPhase.QuorumBook(f[1], Integer.parseInt(f[2])));
                 NoPhase.quorumCounter++;
@@ -139,7 +140,9 @@ public class NoPhase implements ProtocolMode {
             String valueString= message.substring(5);
             writingValue = valueString;
             startDo = true;
-            System.out.println("StartDo" + startDo);
+            synchronized (trigger) {
+                trigger.notifyAll();
+            }
         }
     }
 
@@ -149,7 +152,6 @@ public class NoPhase implements ProtocolMode {
         lock.status = true;// lock myself.
         quorumSet.add(new QuorumBook(localIP, localPort));
         if (getQuorum(addressBook, info)) {
-            System.out.println("Horay! We have enough quorum! quorum counter: " + quorumCounter + " writing number: " + info.writingQuorum);
             quorum = true;
             /**
              * Nodes in quorumSet are selected, then send unlock to other nodes
@@ -174,7 +176,6 @@ public class NoPhase implements ProtocolMode {
                 }
             }
         } else {// Not enough quorum
-            System.out.println("Oops! Not enough quorum. quorum counter: " + quorumCounter + " writing number: " + info.writingQuorum);
             quorum = false;
         }
 
@@ -198,7 +199,6 @@ public class NoPhase implements ProtocolMode {
     }
 
     public static void commit(String value) {
-        System.out.println("Doing commit: " + value);
         data.value = Integer.parseInt(value);
     }
 
@@ -218,7 +218,6 @@ public class NoPhase implements ProtocolMode {
             dOut.flush();
             dOut.close();
             s.close();
-            System.out.println("sending: " + message + " to " + ip + " " + port);
         } catch (IOException e) {
             e.printStackTrace();
         }
