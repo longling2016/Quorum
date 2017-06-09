@@ -32,7 +32,9 @@ public class Node {
         try {
             ip = InetAddress.getLocalHost().getHostAddress();
 
-            ssM = new ServerSocket(62000); // TODO: change port
+
+
+            ssM = new ServerSocket(Integer.parseInt(args[0])); // TODO: change port
             portM = ssM.getLocalPort();
 
             System.out.println("IP & port for Monitor: " + ip + " " + portM);
@@ -40,7 +42,7 @@ public class Node {
             Thread thread = new Thread(new ListeningThread(ssM));
             thread.start();
 
-            ss = new ServerSocket(62001); // TODO: change port
+            ss = new ServerSocket(Integer.parseInt(args[1])); // TODO: change port
             port = ss.getLocalPort();
             System.out.println("IP & port for Nodes communication: " + ip + " " + port);
 
