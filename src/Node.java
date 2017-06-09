@@ -25,14 +25,14 @@ public class Node {
     static final Object trigger = new Object();
 
     // config: TODO modify
-    static final int crashRate = 5;
+    static final int crashRate = 3;
     static final int crashDuration = 2000;
 
     public static void main(String[] args) {
         try {
             ip = InetAddress.getLocalHost().getHostAddress();
 
-            ssM = new ServerSocket(0);
+            ssM = new ServerSocket(62000); // TODO: change port
             portM = ssM.getLocalPort();
 
             System.out.println("IP & port for Monitor: " + ip + " " + portM);
@@ -40,7 +40,7 @@ public class Node {
             Thread thread = new Thread(new ListeningThread(ssM));
             thread.start();
 
-            ss = new ServerSocket(0);
+            ss = new ServerSocket(62001); // TODO: change port
             port = ss.getLocalPort();
             System.out.println("IP & port for Nodes communication: " + ip + " " + port);
 
@@ -72,7 +72,7 @@ public class Node {
                     data = new Data();
                     lock = new Lock();
                     info = new Info(0, crashRate, writingQuorum, crashDuration, false);
-                    pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
+                    pm = new TwoPhase(addressBook, data, ss, lock, info);
                     System.out.println("Start testing on two-phase protocol.");
                     pm.execute();
 
@@ -80,7 +80,7 @@ public class Node {
                     data = new Data();
                     lock = new Lock();
                     info = new Info(0, crashRate, writingQuorum, crashDuration, false);
-                    pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
+                    pm = new ThreePhase(addressBook, data, ss, lock, info);
                     System.out.println("Start testing on three-phase protocol.");
                     pm.execute();
 
@@ -157,6 +157,7 @@ public class Node {
             sm.send("block" + info.blockingCounter);
 
         } else if (message.equals("end")) {
+            System.out.println("phase protocol = " + phaseProtocol);
             pm.end();
 
         } else if (message.length() > 5 && message.substring(0, 6).equals("quorum")) {
