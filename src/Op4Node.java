@@ -20,6 +20,7 @@ public class Op4Node {
     }
 
     public void opInitiate(QuorumInfra quorumInfra, int qSeq, int value) {
+        LogSys.debug("Initiate op4node" + quorumInfra.coordinator.info.hostID + " qseq = " + qSeq+ " value =" + value);
         this.quorumInfra = quorumInfra;
         this.qSeq = qSeq;
         this.value = value;

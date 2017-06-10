@@ -23,10 +23,11 @@ public class NoPhaseThread implements Runnable {
                 dIn = new DataInputStream(socket.getInputStream());
 
                 String message = dIn.readUTF();
+                System.out.println("no phase: " + message);
                 NoPhase.noPhaseListen(message);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+//            e.printStackTrace();
         } finally {
             if (dIn != null) {
                 try {

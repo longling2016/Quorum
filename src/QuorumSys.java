@@ -1,8 +1,8 @@
+import sun.rmi.runtime.Log;
+
 import java.io.IOException;
 import java.io.PrintStream;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketException;
+import java.net.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
@@ -29,10 +29,16 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
         this.quorumNodes = new QuorumNode[addressBook.length];
         for(int i = 0; i < addressBook.length; i++){
             this.quorumNodes[i] = new QuorumNode(addressBook[i]);
-            String ip = ss.getInetAddress().getHostAddress();
+            String ip = null;
+            try {
+                ip = InetAddress.getLocalHost().getHostAddress();
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
+            }
             int port = ss.getLocalPort();
             if(ip.equals(addressBook[i].ip) && port == addressBook[i].port){
-                myself = new QuorumNode(addressBook[i]);
+                myself = this.quorumNodes[i];
+                LogSys.setLogSys(ip+":"+port,""+addressBook[i].hostID);
             }
         }
         this.data = data;
@@ -58,12 +64,15 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
             return "GLOBAL_ABORT";
         }
 
-        if(!curOp4Coordinator.status.equals("free") && curOp4Coordinator.getqSeq() == qSequence) {
+        if(!curOp4Coordinator.status.equals("FREE") && curOp4Coordinator.getqSeq() == qSequence) {
+            LogSys.debug("receive quorumStatus request, coordinator = "+myself.info.hostID + curOp4Coordinator.getValue());
             return curOp4Coordinator.status;
         }
 
         Op4Coordinator op = log4Coordinator.get(qSequence);
-        if (op == null) return "GLOBAL_ABORT";
+        if (op == null){
+            return "GLOBAL_ABORT";
+        }
 
         return op.status;
     }
@@ -73,7 +82,9 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
 
         QuorumNode coordinator = quorumNodes[coordinatorId];
 
-        if(!curOp4Node.getStatus().equals("free") && curOp4Node.getQuorumInfra().coordinator == coordinator && curOp4Node.getqSeq() == qSequence){
+        if(!curOp4Node.getStatus().equals("FREE") && curOp4Node.getQuorumInfra().coordinator == coordinator && curOp4Node.getqSeq() == qSequence){
+            LogSys.debug("receive quorumStatus request, coordinator = " + curOp4Node.getQuorumInfra().coordinator.info.hostID + " value = " + curOp4Node.getValue());
+
             return curOp4Node.getStatus();
         }else {
             HashMap<Integer, Op4Node> logMap = log4Node.get(coordinator);
@@ -86,15 +97,7 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
     }
 
 
-//    public  String requestQuorumStatus(int coordinatorId, int quorumSeq){
-//
-//        QuorumNode coordinator = quorumNodes[coordinatorId];
-//        if(isCoodinator){
-//            return getQuorumStatus4Coordinator(coordinator,quorumSeq);
-//        }
-//
-//        return getQuorumStatus4Node(coordinator, quorumSeq);
-//    }
+
 
     public boolean isAlive(){
         return isAlive;
@@ -110,8 +113,6 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
         String request = "apply,"+ qSeq +","+value+ ",";
         QuorumNode qNodes[] = new QuorumNode[nodes.size()];
 
-
-
         request += myself.info.hostID;
         int count = 0;
         for(int i = 0; i < nodes.size(); i++){
@@ -125,18 +126,28 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
         for (int id : nodes) {
             QuorumNode node = quorumNodes[id];
             if (isNeed2Crash(info.crashRate)) {
+                curOp4Coordinator.setStatus("GLOBAL_ABORT");
+                LogSys.debug("coordinator crashed in apply phase");
+                isAlive = false;
+                info.ifCrash = true;
+                for (QuorumNode n : done) {
+                    LogSys.debug("send COORDINATOR_CRASH to "+n.info.hostID);
+                    Util.sAr(n, "COORDINATOR_CRASH");
+                }
                 crashing();
                 coordinatorRestart();
+
                 return false;
             }
 
             String res = Util.sAr(node, request);
             if (res.equals("READY") ) {
+                LogSys.debug("receive ready from node " + node.info.hostID +" "+res);
                 done.add(node);
             } else {//might be abort or crashed
-                LogSys.debug("quorumWrite failed because of node " + id +" "+res);
+                LogSys.debug("quorumWrite failed because of node " + node.info.hostID +" "+res);
                 for (QuorumNode n : done) {
-                    Util.sAr(node, "ABORT");
+                    Util.sAr(n, "GLOBAL_ABORT");
                 }
                 return false;
             }
@@ -161,11 +172,11 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
             if (!isChosen[id]) {
                 if (checkIsAlive(node)) {
                     nodes.add(id);
-                    isChosen[count] = true;
+                    isChosen[id] = true;
                     count++;
                 } else {
                     LogSys.debug("node " + node.info.hostID + "crashed");
-                    isChosen[count] = true;
+                    isChosen[id] = true;
                     aliveCount--;
                 }
             }
@@ -187,8 +198,8 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
     public boolean isNeed2Crash(int probability){
         Random rd = new Random();
 
-        int i = rd.nextInt(100);
-        if(i < probability){
+        int i = rd.nextInt(probability);
+        if(i < 1){
             return true;
         }
 
@@ -196,8 +207,7 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
     }
 
     public void crashing(){
-        LogSys.debug("crashed");
-        isAlive = false;
+
         try {
             //reparing
             Thread.sleep(info.crashDuration);
@@ -240,20 +250,25 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
     public boolean quorumCommit() {
         ArrayList<QuorumNode> done = new ArrayList<>();
         curOp4Coordinator.setStatus("GLOBAL_COMMIT");
-        for (QuorumNode node : curOp4Node.getQuorumInfra().getQuorumNodes()) {
+        for (QuorumNode node : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
             if (isNeed2Crash(info.crashRate)) {
+                LogSys.debug("crashed");
+                isAlive = false;
+                info.ifCrash = true;
+
+                for (QuorumNode n : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
+                    Util.sAr(n, "COORDINATOR_CRASH");
+                }
                 crashing();
                 coordinatorRestart();
                 return true;
             }
-
+            LogSys.debug("send quorumCommit to "+node.info.hostID);
             String res = Util.sAr(node, "quorumCommit");
             if (res.equals("COMMIT")) {
                 done.add(node);
             } else if  (res.equals("crashed")){
-//                for (QuorumNode n : done) {
-//                    Util.sAr(node, "APPLY_ABORT");
-//                }
+
                 LogSys.debug("node "+ node.info.hostID +" crashed");
                 continue;
             }
@@ -264,13 +279,27 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
 
     public String recvQuorumApply(QuorumInfra infra, int qSeq, int value, PrintStream out){
         synchronized (lock){
-            if(lock.status) return "ABORT";
+            if(lock.status) {
+                LogSys.debug("lock conflict occurs");
+                return "ABORT";
+            }
+            LogSys.debug("set lock because write "+ value +" from "+infra.coordinator.info.hostID+" seq =" + qSeq);
             lock.status = true;
+        }
+
+        if(infra == null){
+            LogSys.debug("quorum Infra is null when received apply request");
+            return "";
         }
 
         curOp4Node.opInitiate(infra,qSeq,value);
         if(isNeed2Crash(info.crashRate)){
+            LogSys.debug("crashed");
+            isAlive = false;
+            info.ifCrash = true;
+
             out.println("crashed");
+
             crashing();
             qNodeRecover();
             return "";
@@ -279,9 +308,15 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
     }
 
     public void quorumAbort(){
+//        synchronized (lock) {
+//            lock.status = false;
+//            LogSys.debug("clear lock because write "+ curOp4Coordinator.getValue() +" from "+curOp4Coordinator.getQuorumInfra().coordinator.info.hostID);
+//
+//        }
         curOp4Coordinator.setStatus("GLOBAL_ABORT");
-        log4Coordinator.put(curOp4Node.getqSeq(), new Op4Coordinator(curOp4Coordinator));
+        log4Coordinator.put(curOp4Coordinator.getqSeq(), new Op4Coordinator(curOp4Coordinator));
         curOp4Coordinator.clear();
+
     }
 
     public void quorumComplete(){
@@ -291,28 +326,58 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
     }
 
     public void quorumAbort4Node(){
+
+        synchronized (lock) {
+            lock.status = false;
+            if(!curOp4Node.getStatus().equals("FREE")){
+                LogSys.debug("clear lock because write "+ curOp4Node.getValue() +" abort from "+curOp4Node.getQuorumInfra().coordinator.info.hostID + " seq = " +curOp4Node.getqSeq());
+            }else{
+                LogSys.debug("current op in node is free");
+            }
+        }
+
+        QuorumInfra infra = curOp4Node.getQuorumInfra();
+        if(infra == null){
+            LogSys.debug("qInfra is null");
+            return;
+        }
+
+        QuorumNode coNode = infra.getCoordinator();
+        if(coNode == null){
+            LogSys.debug("node is null");
+            return;
+        }
+
         curOp4Node.setStatus("ABORT");
-        HashMap<Integer,Op4Node> logMap = log4Node.get(curOp4Node.getQuorumInfra().getCoordinator());
+
+        HashMap<Integer,Op4Node> logMap = log4Node.get(coNode);
         if(logMap ==null){
             logMap = new HashMap<Integer,Op4Node>();
             log4Node.put(curOp4Node.getQuorumInfra().getCoordinator(), logMap);
         }
         logMap.put(curOp4Node.getqSeq(), new Op4Node(curOp4Node));
         curOp4Node.clear();
+
     }
 
     public String recvQuorumAbort(PrintStream out){
-        if(isNeed2Crash(info.crashRate)){
-            out.println("crashed");
-            crashing();
-            qNodeRecover();
-            return "";
-        }
+//        if(isNeed2Crash(info.crashRate)){
+//            out.println("crashed");
+//            crashing();
+//            qNodeRecover();
+//            return "";
+//        }
         quorumAbort4Node();
         return "success";
     }
 
     public void quorumCommit4Node(){
+
+        synchronized (lock) {
+            lock.status = false;
+            LogSys.debug("clear lock because write "+ curOp4Node.getValue() +" commit from "+curOp4Node.getQuorumInfra().coordinator.info.hostID + " seq = " +curOp4Node.getqSeq());
+        }
+
         data.value = curOp4Node.getValue();
         curOp4Node.setStatus("COMMIT");
         HashMap<Integer,Op4Node> logMap = log4Node.get(curOp4Node.getQuorumInfra().getCoordinator());
@@ -322,10 +387,15 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
         }
         logMap.put(curOp4Node.getqSeq(), new Op4Node(curOp4Node));
         curOp4Node.clear();
+
     }
 
     public String recvQuorumCommit(PrintStream out){
         if(isNeed2Crash(info.crashRate)){
+            LogSys.debug("crashed");
+            isAlive = false;
+            info.ifCrash = true;
+
             out.println("crashed");
             crashing();
             qNodeRecover();
@@ -339,20 +409,29 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
     public void run() {
 
         Socket session = null;
+        ArrayList<QuorumServThd> threadsPool = new ArrayList<QuorumServThd>(threadsSize);
+
         while (true) {
-            synchronized (isEnd) {
-                if (isEnd) break;
-            }
+
             try {
                 session = ss.accept();
                 LogSys.debug(session.toString());
             } catch (IOException e) {
-                e.printStackTrace();
+                synchronized (isEnd) {
+                    if (isEnd){
+                        LogSys.debug("thread end");
+                        for (int i = 0; i < threadsPool.size(); i++) {
+                            QuorumServThd t = threadsPool.get(i);
+                            t.end();
+                            t.awake();
+                        }
+                        return;
+                    }
+                }
             }
 
             QuorumServThd cur = null;
             int count = 0;
-            ArrayList<QuorumServThd> threadsPool = new ArrayList<QuorumServThd>(threadsSize);
             ArrayList<Socket> sessionPool = new ArrayList<>();
 
             for (int i = 0; i < threadsPool.size(); i++) {
@@ -385,13 +464,13 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
 
         }
 
-        if (session != null) {
-            try {
-                session.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+//        if (session != null) {
+//            try {
+//                session.close();
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//        }
 
     }
 
@@ -400,10 +479,16 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
         synchronized (isEnd) {
             isEnd = true;
         }
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     public abstract boolean strictQuorumWrite( int value);
     public abstract String requestQuorumDecision();
     public abstract void qNodeRecover( );
-    public abstract void coordinatorRestart( );
+    public abstract boolean coordinatorRestart( );
+    public abstract String recvCoordinatorCrashed();
 }

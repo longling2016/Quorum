@@ -24,7 +24,7 @@ public class ListeningThread implements Runnable {
                 String message = dIn.readUTF();
 
                 Node.listen(message);
-//                System.out.println(message);
+//                System.out.println("message received for node: " + message);
             }
 
         } catch (IOException e) {

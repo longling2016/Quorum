@@ -71,6 +71,8 @@ public class Node {
                     pm.execute();
 
                 } else if (phaseProtocol == 2) {
+                    ss.close();
+                    ss = new ServerSocket(Integer.parseInt(args[1])); // TODO: change port
                     data = new Data();
                     lock = new Lock();
                     info = new Info(0, crashRate, writingQuorum, crashDuration, false);
@@ -79,12 +81,15 @@ public class Node {
                     pm.execute();
 
                 } else if (phaseProtocol == 3) {
+                    ss.close();
+                    ss = new ServerSocket(Integer.parseInt(args[1])); // TODO: change port
                     data = new Data();
                     lock = new Lock();
                     info = new Info(0, crashRate, writingQuorum, crashDuration, false);
                     pm = new ThreePhase(addressBook, data, ss, lock, info);
                     System.out.println("Start testing on three-phase protocol.");
                     pm.execute();
+                    ss.close();
 
                 } else {
                     System.out.println("Illegal number of phaseProtocol = " + phaseProtocol);

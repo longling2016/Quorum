@@ -41,8 +41,12 @@ public class ThreePhase extends QuorumSys {
         }
 
         //phase 2: quorumPrecommit
-        if (!quorumPrecommit()) {
-            LogSys.debug("quorum write error in quorumPrecommit phase");
+        String res = quorumPrecommit();
+        if (res.equals("COMMIT")) {
+            LogSys.debug("quorum write commit in quorumPrecommit phase");
+            return true;
+        }else if(res.equals("ABORT")) {
+            LogSys.debug("quorum write abort in quorumPrecommit phase");
             return false;
         }
 
@@ -60,19 +64,30 @@ public class ThreePhase extends QuorumSys {
          But I am pretty sure you can have so many other ways to do the same thing :)
          */
 
+        quorumComplete();
 
         isCoodinator = false;
-        curOp4Coordinator.clear();
         return true;
     }
 
-    public boolean quorumPrecommit() {
+    public String quorumPrecommit() {
         ArrayList<QuorumNode> done = new ArrayList<>();
-        for (QuorumNode node : curOp4Node.getQuorumInfra().getQuorumNodes()) {
+        curOp4Coordinator.setStatus("GLOBAL_PRECOMMIT");
+        for (QuorumNode node : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
             if (isNeed2Crash(info.crashRate)) {
+                LogSys.debug("crashed");
+                isAlive = false;
+                info.ifCrash = true;
+
+                for (QuorumNode n : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
+                    Util.sAr(n, "COORDINATOR_CRASH");
+                }
                 crashing();
-                coordinatorRestart();
-                return false;
+                if(coordinatorRestart()){
+                    return "COMMIT";
+                }
+                return "ABORT";
+
             }
 
             String res = Util.sAr(node, "quorumPrecommit");
@@ -82,17 +97,20 @@ public class ThreePhase extends QuorumSys {
 //                for (QuorumNode n : done) {
 //                    Util.sAr(node, "APPLY_ABORT");
 //                }
-                LogSys.debug("node " + node.info.hostID + " crashed");
+                LogSys.debug("node " + node.info.hostID + " crashed in precommit phase");
                 continue;
             }
         }
-        curOp4Coordinator.setStatus("GLOBAL_PRECOMMIT");
-        return true;
+        return "CONTINUE";
     }
 
 
     public String recvQuorumPrecommit(PrintStream out) {
         if (isNeed2Crash(info.crashRate)) {
+            LogSys.debug("crashed");
+            isAlive = false;
+            info.ifCrash = true;
+
             out.println("crashed");
             crashing();
             qNodeRecover();
@@ -108,15 +126,19 @@ public class ThreePhase extends QuorumSys {
 
         switch (curOp4Node.getStatus()) {
             case "FREE":
+            case "ABORT":
+                LogSys.debug("receive QuorumDecision in"+ curOp4Node.getStatus());
                 break;
             case "READY":
             case "PRECOMMIT":
                 res = requestQuorumDecision();
+                LogSys.debug("get QuorumDecision "+ res);
+
                 if (res.equals("GLOBAL_ABORT") || res.equals("ABORT")) {
-                    quorumAbort();
+                    quorumAbort4Node();
                     break;
-                } else if (res.equals("GLOBAL_COMMIT") || res.equals("COMMIT")) {
-                    quorumCommit();
+                } else if (res.equals("GLOBAL_COMMIT") || res.equals("GLOBAL_PRECOMMIT") || res.equals("COMMIT")) {
+                    quorumCommit4Node();
                     break;
                 }
                 break;
@@ -124,9 +146,10 @@ public class ThreePhase extends QuorumSys {
                 break;
         }
         isAlive = true;
+        info.ifCrash = false;
     }
 
-    public void coordinatorRestart( ){
+    public boolean coordinatorRestart( ){
         boolean isAbort = false;
 
         if(curOp4Coordinator.getStatus().equals("GLOBAL_APPLY")){
@@ -138,8 +161,10 @@ public class ThreePhase extends QuorumSys {
 
             for (QuorumNode node : infra.getQuorumNodes()) {
                 res = Util.sAr(node, request);
+                LogSys.debug("get QuorumDecision "+ res);
+
                 if(res.equals("ABORT")){
-                    curOp4Coordinator.setStatus("GLOBAL_COMMIT");
+                    curOp4Coordinator.setStatus("GLOBAL_ABORT");
                     isAbort = true;
                     break;
                 }
@@ -149,10 +174,19 @@ public class ThreePhase extends QuorumSys {
         }
 
         if(!curOp4Coordinator.getStatus().equals("FREE")) {
-            log4Coordinator.put(curOp4Node.getqSeq(), new Op4Coordinator(curOp4Coordinator));
+            log4Coordinator.put(curOp4Coordinator.getqSeq(), new Op4Coordinator(curOp4Coordinator));
             curOp4Coordinator.clear();
         }
         isAlive = true;
+        info.ifCrash = false;
+
+        try {
+            Thread.sleep(10);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        return !isAbort;
     }
 
 
@@ -169,7 +203,7 @@ public class ThreePhase extends QuorumSys {
             return res;
         }
 
-        op = "quorumStatus4Nodes";
+        op = "quorumStatus4Nodes,";
         for (QuorumNode node : infra.getQuorumNodes()) {
             res = Util.sAr(node, op + request);
             switch (res) {
@@ -179,13 +213,48 @@ public class ThreePhase extends QuorumSys {
                 case "COMMIT":
                 case "PRECOMMIT":
                     return "COMMIT";
+                case "READY":
+                    break;
                 default://ready and crashed
                     LogSys.debug("receive a unknown decision "+res);
                     break;
             }
 
         }
+        // all is ready
         return "ABORT";
+    }
+
+    public  String recvCoordinatorCrashed(){
+        //if has unfinished job, finished it
+        String res = null;
+
+        switch (curOp4Node.getStatus()) {
+            case "FREE":
+            case "ABORT":
+                LogSys.debug("receive QuorumDecision in"+ curOp4Node.getStatus());
+                break;
+            case "READY":
+                res = requestQuorumDecision();
+                LogSys.debug("get QuorumDecision "+ res);
+                if (res.equals("GLOBAL_ABORT") || res.equals("ABORT")) {
+                    quorumAbort4Node();
+                    break;
+                } else if (res.equals("GLOBAL_COMMIT") || res.equals("COMMIT")) {
+                    quorumCommit4Node();
+                    break;
+                }
+                break;
+            case "PRECOMMIT":
+                quorumCommit4Node();
+                break;
+            default:
+                LogSys.debug("unknown Quorum Decision "+res);
+                break;
+        }
+
+        return "success";
+
     }
 
 }
