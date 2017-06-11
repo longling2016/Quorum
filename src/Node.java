@@ -87,6 +87,7 @@ public class Node {
                 } else if (phaseProtocol == 3) {
                     ss.close();
                     ss = new ServerSocket(Integer.parseInt(args[1])); // TODO: change port
+                    System.out.println("socket opened!");
                     data = new Data();
                     lock = new Lock();
                     info = new Info(0, crashRate, writingQuorum, crashDuration, false);
@@ -154,12 +155,12 @@ public class Node {
             }
 
         } else if (message.equals("ping")) {
-            if (info.ifCrash) {
-//                System.out.println("send crash.");
-                sm.send("crash");
-            } else {
+            if (!info.ifCrash && !lock.status) {
 //                System.out.println("send ack.");
                 sm.send("ack");
+            } else {
+//                System.out.println("send crash.");
+                sm.send("crash");
             }
 
         } else if (message.equals("read")) {

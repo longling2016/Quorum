@@ -418,7 +418,7 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
                 LogSys.debug(session.toString());
             } catch (IOException e) {
                 synchronized (isEnd) {
-                    if (isEnd){
+                    if (isEnd || session == null){
                         LogSys.debug("thread end");
                         for (int i = 0; i < threadsPool.size(); i++) {
                             QuorumServThd t = threadsPool.get(i);
@@ -453,7 +453,7 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
             int timeout = 10000;
 
             try {
-                session.setSoTimeout(timeout);
+                if(session != null) session.setSoTimeout(timeout);
             } catch (SocketException e) {
                 e.printStackTrace();
             }
