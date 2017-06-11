@@ -34,7 +34,7 @@ public class Node {
 
 
 
-            ssM = new ServerSocket(Integer.parseInt(args[0])); // TODO: change port
+            ssM = new ServerSocket(0); // TODO: change port
             portM = ssM.getLocalPort();
 
             System.out.println("IP & port for Monitor: " + ip + " " + portM);
@@ -42,7 +42,7 @@ public class Node {
             Thread thread = new Thread(new ListeningThread(ssM));
             thread.start();
 
-            ss = new ServerSocket(Integer.parseInt(args[1])); // TODO: change port
+            ss = new ServerSocket(0); // TODO: change port
             port = ss.getLocalPort();
             System.out.println("IP & port for Nodes communication: " + ip + " " + port);
 
@@ -73,7 +73,7 @@ public class Node {
 
                 } else if (phaseProtocol == 2) {
                     ss.close();
-                    ss = new ServerSocket(Integer.parseInt(args[1])); // TODO: change port
+                    ss = new ServerSocket(port); // TODO: change port
                     data = new Data();
                     lock = new Lock();
                     info = new Info(0, crashRate, writingQuorum, crashDuration, false);
@@ -83,7 +83,7 @@ public class Node {
 
                 } else if (phaseProtocol == 3) {
                     ss.close();
-                    ss = new ServerSocket(Integer.parseInt(args[1])); // TODO: change port
+                    ss = new ServerSocket(port); // TODO: change port
                     data = new Data();
                     lock = new Lock();
                     info = new Info(0, crashRate, writingQuorum, crashDuration, false);
