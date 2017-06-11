@@ -26,25 +26,32 @@ public class Node {
 
     // config: TODO modify
     static final int crashRate = 50;
-    static final int crashDuration = 2000;
+    static final int crashDuration = 3000;
 
     public static void main(String[] args) {
         try {
             ip = InetAddress.getLocalHost().getHostAddress();
 
 
+            Scanner scanner = new Scanner(System.in);
+            System.out.print("Enter port number for monitor and nodes communication> ");
+            String message = scanner.nextLine();
 
-            ssM = new ServerSocket(0); // TODO: change port
+            String[] ports = message.split(" ");
+
+            ssM = new ServerSocket(Integer.parseInt(ports[0])); // TODO: change port
             portM = ssM.getLocalPort();
 
-            System.out.println("IP & port for Monitor: " + ip + " " + portM);
+//            System.out.println("IP & port for Monitor: " + ip + " " + portM);
 
             Thread thread = new Thread(new ListeningThread(ssM));
             thread.start();
 
-            ss = new ServerSocket(0); // TODO: change port
+//            System.out.print("Enter port number for nodes communication > ");
+//            message = scanner.nextLine();
+            ss = new ServerSocket(Integer.parseInt(ports[1])); // TODO: change port
             port = ss.getLocalPort();
-            System.out.println("IP & port for Nodes communication: " + ip + " " + port);
+//            System.out.println("IP & port for Nodes communication: " + ip + " " + port);
 
             int counter = 0;
 
@@ -66,7 +73,7 @@ public class Node {
                 if (phaseProtocol == 0) {
                     data = new Data();
                     lock = new Lock();
-                    info = new Info(0, crashRate/5, writingQuorum, crashDuration, false);
+                    info = new Info(0, crashRate/3, writingQuorum, crashDuration, false);
                     pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
                     System.out.println("Start testing on no-phase protocol.");
                     pm.execute();

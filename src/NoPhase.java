@@ -77,7 +77,7 @@ public class NoPhase implements ProtocolMode {
         while (!terminate) {
             synchronized(trigger) {
                 try {
-//                    System.out.println("startDo = " + startDo + " terminate = " + terminate);
+                    System.out.println("startDo = " + startDo + " terminate = " + terminate);
                     while (!startDo && !terminate) {
                         trigger.wait();
                     }
@@ -85,9 +85,9 @@ public class NoPhase implements ProtocolMode {
                     e.printStackTrace();
                 }
             }
-//            System.out.println("jump outside waiting in no phase.");
+            System.out.println("jump outside waiting in no phase.");
             if (terminate) {
-//                System.out.println("no phase execution function is ended!");
+                System.out.println("no phase execution function is ended!");
                 return;
             }
 
@@ -243,20 +243,35 @@ public class NoPhase implements ProtocolMode {
      * @param addressBook
      */
     public static void broadcast(String message, Address[] addressBook) {
+        int select = new Random().nextInt(10);
         try {
-            for (Address each : addressBook) {
-                if (each.ip.equals(localIP) && each.port == localPort) {// skip myself
-                    continue;
+            if (select < 5) {
+                for (int i = 0; i < addressBook.length; i++) {
+                    if (addressBook[i].ip.equals(localIP) && addressBook[i].port == localPort) {
+                        continue;
+                    }
+                    Socket s = new Socket(addressBook[i].ip, addressBook[i].port);
+                    DataOutputStream dOut = new DataOutputStream(s.getOutputStream());
+                    dOut.writeUTF(message);
+                    dOut.flush();
+                    dOut.close();
+                    s.close();
                 }
-                Socket s = new Socket(each.ip, each.port);
-                DataOutputStream dOut = new DataOutputStream(s.getOutputStream());
-                dOut.writeUTF(message);
-                dOut.flush();
-                dOut.close();
-                s.close();
+            } else {
+                for (int i = addressBook.length - 1; i >= 0; i--) {
+                    if (addressBook[i].ip.equals(localIP) && addressBook[i].port == localPort) {
+                        continue;
+                    }
+                    Socket s = new Socket(addressBook[i].ip, addressBook[i].port);
+                    DataOutputStream dOut = new DataOutputStream(s.getOutputStream());
+                    dOut.writeUTF(message);
+                    dOut.flush();
+                    dOut.close();
+                    s.close();
+                }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+        e.printStackTrace();
         }
     }
 
