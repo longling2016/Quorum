@@ -25,7 +25,7 @@ public class Node {
     static final Object trigger = new Object();
 
     // config: TODO modify
-    static final int crashRate = 10;
+    static final int crashRate = 50;
     static final int crashDuration = 2000;
 
     public static void main(String[] args) {
@@ -54,7 +54,6 @@ public class Node {
 
                 synchronized(trigger) {
                     try {
-                        System.out.println("inside waiting..." + phaseProtocol);
                         while (phaseProtocol == -1) {
                             trigger.wait();
                         }
@@ -63,16 +62,14 @@ public class Node {
                     }
                 }
 
-                System.out.println("jump outside waiting...");
 
                 if (phaseProtocol == 0) {
                     data = new Data();
                     lock = new Lock();
-                    info = new Info(0, crashRate, writingQuorum, crashDuration, false);
+                    info = new Info(0, crashRate/5, writingQuorum, crashDuration, false);
                     pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
                     System.out.println("Start testing on no-phase protocol.");
                     pm.execute();
-                    System.out.println("execute no phase is done.");
 
                 } else if (phaseProtocol == 2) {
                     ss.close();
@@ -87,19 +84,17 @@ public class Node {
                 } else if (phaseProtocol == 3) {
                     ss.close();
                     ss = new ServerSocket(Integer.parseInt(args[1])); // TODO: change port
-                    System.out.println("socket opened!");
                     data = new Data();
                     lock = new Lock();
                     info = new Info(0, crashRate, writingQuorum, crashDuration, false);
                     pm = new ThreePhase(addressBook, data, ss, lock, info);
                     System.out.println("Start testing on three-phase protocol.");
                     pm.execute();
-                    ss.close();
 
                 } else {
                     System.out.println("Illegal number of phaseProtocol = " + phaseProtocol);
                 }
-                counter --;
+                counter ++;
             }
 
         } catch (IOException e) {
@@ -145,7 +140,6 @@ public class Node {
             synchronized (trigger) {
                 trigger.notifyAll();
             }
-            System.out.println("after notify.");
 
         } else if (message.equals("threeP")) {
             // test on three-phase protocol
@@ -170,7 +164,6 @@ public class Node {
             sm.send("block" + info.blockingCounter);
 
         } else if (message.equals("end")) {
-            System.out.println("phase protocol = " + phaseProtocol);
             pm.end();
 
         } else if (message.length() > 5 && message.substring(0, 6).equals("quorum")) {

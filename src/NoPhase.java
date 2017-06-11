@@ -77,7 +77,7 @@ public class NoPhase implements ProtocolMode {
         while (!terminate) {
             synchronized(trigger) {
                 try {
-                    System.out.println("startDo = " + startDo + " terminate = " + terminate);
+//                    System.out.println("startDo = " + startDo + " terminate = " + terminate);
                     while (!startDo && !terminate) {
                         trigger.wait();
                     }
@@ -85,9 +85,9 @@ public class NoPhase implements ProtocolMode {
                     e.printStackTrace();
                 }
             }
-            System.out.println("jump outside waiting in no phase.");
+//            System.out.println("jump outside waiting in no phase.");
             if (terminate) {
-                System.out.println("no phase execution function is ended!");
+//                System.out.println("no phase execution function is ended!");
                 return;
             }
 
