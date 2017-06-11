@@ -18,12 +18,12 @@ public class NoPhaseThread implements Runnable {
         DataInputStream dIn = null;
         Socket socket;
         try {
-            while (true) {
+            while (true && !NoPhase.terminate) {
                 socket = ss.accept();
                 dIn = new DataInputStream(socket.getInputStream());
 
                 String message = dIn.readUTF();
-                System.out.println("no phase: " + message);
+//                System.out.println("no phase: " + message);
                 NoPhase.noPhaseListen(message);
             }
         } catch (IOException e) {

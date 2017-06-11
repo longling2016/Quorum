@@ -25,7 +25,7 @@ public class Node {
     static final Object trigger = new Object();
 
     // config: TODO modify
-    static final int crashRate = 3;
+    static final int crashRate = 10;
     static final int crashDuration = 2000;
 
     public static void main(String[] args) {
@@ -54,6 +54,7 @@ public class Node {
 
                 synchronized(trigger) {
                     try {
+                        System.out.println("inside waiting..." + phaseProtocol);
                         while (phaseProtocol == -1) {
                             trigger.wait();
                         }
@@ -62,6 +63,8 @@ public class Node {
                     }
                 }
 
+                System.out.println("jump outside waiting...");
+
                 if (phaseProtocol == 0) {
                     data = new Data();
                     lock = new Lock();
@@ -69,6 +72,7 @@ public class Node {
                     pm = new NoPhase(addressBook, data, ss, lock, info, new Address(999, monitorIP, monitorPort));
                     System.out.println("Start testing on no-phase protocol.");
                     pm.execute();
+                    System.out.println("execute no phase is done.");
 
                 } else if (phaseProtocol == 2) {
                     ss.close();
@@ -140,6 +144,7 @@ public class Node {
             synchronized (trigger) {
                 trigger.notifyAll();
             }
+            System.out.println("after notify.");
 
         } else if (message.equals("threeP")) {
             // test on three-phase protocol

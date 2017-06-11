@@ -77,6 +77,7 @@ public class NoPhase implements ProtocolMode {
         while (!terminate) {
             synchronized(trigger) {
                 try {
+                    System.out.println("startDo = " + startDo + " terminate = " + terminate);
                     while (!startDo && !terminate) {
                         trigger.wait();
                     }
@@ -84,6 +85,12 @@ public class NoPhase implements ProtocolMode {
                     e.printStackTrace();
                 }
             }
+            System.out.println("jump outside waiting in no phase.");
+            if (terminate) {
+                System.out.println("no phase execution function is ended!");
+                return;
+            }
+
             boolean success = doNoPhase(writingValue);
             if (success) {
                 sendMessage("success", monitor.ip, monitor.port);
@@ -91,12 +98,19 @@ public class NoPhase implements ProtocolMode {
                 sendMessage("fail", monitor.ip, monitor.port);
             }
         }
+
+        System.out.println("no phase execution function is ended!");
     }
 
     public void end() {
         try {
             noPhaseThread.interrupt();
             terminate = true;
+//            try {
+//                Thread.sleep(2000);
+//            } catch (InterruptedException e){
+//                e.printStackTrace();
+//            }
             synchronized (trigger) {
                 trigger.notifyAll();
             }
