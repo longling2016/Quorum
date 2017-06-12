@@ -25,33 +25,21 @@ public class Node {
     static final Object trigger = new Object();
 
     // config: TODO modify
-    static final int crashRate = 50;
-    static final int crashDuration = 3000;
+    static final int crashRate = 20;
+    static final int crashDuration = 1000;
 
     public static void main(String[] args) {
         try {
             ip = InetAddress.getLocalHost().getHostAddress();
 
-
-            Scanner scanner = new Scanner(System.in);
-            System.out.print("Enter port number for monitor and nodes communication> ");
-            String message = scanner.nextLine();
-
-            String[] ports = message.split(" ");
-
-            ssM = new ServerSocket(Integer.parseInt(ports[0])); // TODO: change port
+            ssM = new ServerSocket(Integer.parseInt(args[0])); // TODO: change port
             portM = ssM.getLocalPort();
-
-//            System.out.println("IP & port for Monitor: " + ip + " " + portM);
 
             Thread thread = new Thread(new ListeningThread(ssM));
             thread.start();
 
-//            System.out.print("Enter port number for nodes communication > ");
-//            message = scanner.nextLine();
-            ss = new ServerSocket(Integer.parseInt(ports[1])); // TODO: change port
+            ss = new ServerSocket(Integer.parseInt(args[1])); // TODO: change port
             port = ss.getLocalPort();
-//            System.out.println("IP & port for Nodes communication: " + ip + " " + port);
 
             int counter = 0;
 

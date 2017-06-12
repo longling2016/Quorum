@@ -1,15 +1,3 @@
-# pay attention!
-
-## Let's follow the standard as below:
- - the crash rate is expressed as an int n, which means randomly create a number as rand.nextInt(n), crash rate for this moment is 1/n.
- - please make sure you change the boolean: ifCrash in Info of your class (no phase, two phase, three phase) to true before simulating the crash situation, and change it back to false after node is recovered.
- - Total blocking encountering is calculated by adding all numbers up.
- - Implement an "end()" method to kill the thread you created for listening.
- - Please follow the convention for message parsing:
-   - **write<value>**: example as "write10027"
-   - **fail**: after writing operation is aborted 
-   - **success**: after writing operation is completed successfully.
- 
- 
-
- 
+How to make this program work?
+1. open 11 terminals: 1 for Monitor to run, 10 for cluster nodes to run.(We can only simulate these many nodes in local since the design center has limitation of computers we can ssh, and 10 machines to ssh at the same time is not allowed.)
+2. set up the 10 nodes machine first: after you 
