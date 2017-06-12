@@ -1,3 +1,4 @@
+import java.io.PrintStream;
 import java.net.ServerSocket;
 import java.util.ArrayList;
 
@@ -18,10 +19,69 @@ public class TwoPhase extends QuorumSys {
         isBlocking = false;
     }
 
+
+    public String quorumApply(ArrayList<Integer> nodes, int value, PrintStream out) {
+        if(nodes.size() == 0 ){
+            LogSys.debug("no quorum node in this op");
+            out.println("fail");
+
+            return "ABORT";
+        }
+        int qSeq = quorumSeq++;
+        ArrayList<QuorumNode> done = new ArrayList<>();
+        String request = "apply,"+ qSeq +","+value+ ",";
+        QuorumNode qNodes[] = new QuorumNode[nodes.size()];
+
+        request += myself.info.hostID;
+        int count = 0;
+        for(int i = 0; i < nodes.size(); i++){
+            request += ":"+nodes.get(i);
+            qNodes[i] = quorumNodes[nodes.get(i)];
+        }
+
+        QuorumInfra infra = new QuorumInfra(myself, qNodes);
+        curOp4Coordinator.opInitiate(infra,qSeq,value);
+
+        for (int id : nodes) {
+            QuorumNode node = quorumNodes[id];
+            if (isNeed2Crash(info.crashRate)) {
+                curOp4Coordinator.setStatus("GLOBAL_ABORT");
+                LogSys.debug("coordinator crashed in apply phase");
+                isAlive = false;
+                info.ifCrash = true;
+                for (QuorumNode n : done) {
+                    LogSys.debug("send COORDINATOR_CRASH to "+n.info.hostID);
+                    Util.sAr(n, "COORDINATOR_CRASH");
+                }
+                crashing();
+                coordinatorRestart();
+                out.println("fail");
+
+                return "ABORT";
+            }
+
+            String res = Util.sAr(node, request);
+            if (res.equals("READY") ) {
+                LogSys.debug("receive ready from node " + node.info.hostID +" "+res);
+                done.add(node);
+            } else {//might be abort or crashed
+                LogSys.debug("quorumWrite failed because of node " + node.info.hostID +" "+res);
+                for (QuorumNode n : done) {
+                    Util.sAr(n, "GLOBAL_ABORT");
+                }
+                out.println("fail");
+
+                return "ABORT";
+            }
+        }
+
+        return "success";
+    }
+
     /** Return boolean to indicate of the strictQuorumWrite operation is successful or not.
      */
 
-    public boolean strictQuorumWrite(int updateValue) {
+    public boolean strictQuorumWrite(int updateValue, PrintStream out) {
 
         // TODO: simulate random crash, Please remember to change the ifCrash boolean in info before crash and after recovery
         // TODO: handle situation for random crash
@@ -38,7 +98,8 @@ public class TwoPhase extends QuorumSys {
         }
 
         //phase 1: request set status to APPLY_COMMIT
-        if (!quorumApply(nodes, updateValue)) {
+        String res = quorumApply(nodes, updateValue, out);
+        if(res.equals("ABORT")){
             quorumAbort();
             isCoodinator = false;
             LogSys.debug("quorum write error in applying phase");
@@ -46,7 +107,7 @@ public class TwoPhase extends QuorumSys {
         }
 
         //phase 2: quorumCommit
-        quorumCommit();
+        quorumCommit(out);
 
 
         quorumComplete();
@@ -185,6 +246,37 @@ public class TwoPhase extends QuorumSys {
         }
 
         return "success";
+    }
+    public boolean quorumCommit( PrintStream out) {
+        ArrayList<QuorumNode> done = new ArrayList<>();
+        curOp4Coordinator.setStatus("GLOBAL_COMMIT");
+        for (QuorumNode node : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
+            if (isNeed2Crash(info.crashRate)) {
+
+                LogSys.debug("crashed");
+                isAlive = false;
+                info.ifCrash = true;
+
+                for (QuorumNode n : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
+                    Util.sAr(n, "COORDINATOR_CRASH");
+                }
+                crashing();
+                coordinatorRestart();
+                out.println("success");
+                return true;
+            }
+            LogSys.debug("send quorumCommit to "+node.info.hostID);
+            String res = Util.sAr(node, "quorumCommit");
+            if (res.equals("COMMIT")) {
+                done.add(node);
+            } else if  (res.equals("crashed")){
+
+                LogSys.debug("node "+ node.info.hostID +" crashed");
+                continue;
+            }
+        }
+        out.println("success");
+        return true;
     }
 
 }

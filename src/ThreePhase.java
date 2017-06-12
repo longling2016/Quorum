@@ -22,7 +22,7 @@ public class ThreePhase extends QuorumSys {
      * Return boolean to indicate of the strictQuorumWrite operation is successful or not.
      */
 
-    public boolean strictQuorumWrite(int updateValue) {
+    public boolean strictQuorumWrite(int updateValue, PrintStream out) {
 
         // increment blockingCounter every time when a isBlocking is detected
         isCoodinator = true;
@@ -30,18 +30,20 @@ public class ThreePhase extends QuorumSys {
         ArrayList<Integer> nodes = chooseQuorumNodeList(quorumNodes, info.writingQuorum);
         if (nodes.size() < info.writingQuorum) {
             LogSys.debug("can't find enough alive nodes in this system");
+            out.println("fail");
             return false;
         }
 
         //phase 1: request set status to APPLY_COMMIT
-        if (!quorumApply(nodes, updateValue)) {
+        String res = quorumApply(nodes, updateValue, out);
+        if(res.equals("ABORT")){
             LogSys.debug("quorum write error in applying phase");
             quorumAbort();
             return false;
         }
 
         //phase 2: quorumPrecommit
-        String res = quorumPrecommit();
+        res = quorumPrecommit(out);
         if (res.equals("COMMIT")) {
             LogSys.debug("quorum write commit in quorumPrecommit phase");
             return true;
@@ -51,7 +53,7 @@ public class ThreePhase extends QuorumSys {
         }
 
         //phase 3: quorumCommit
-        quorumCommit();
+        quorumCommit(out);
 
 
         // TODO: simulate random crash, Please remember to change the ifCrash boolean in info before crash and after recovery
@@ -70,7 +72,65 @@ public class ThreePhase extends QuorumSys {
         return true;
     }
 
-    public String quorumPrecommit() {
+    public String quorumApply(ArrayList<Integer> nodes, int value, PrintStream out) {
+        if(nodes.size() == 0 ){
+            LogSys.debug("no quorum node in this op");
+            out.println("fail");
+
+            return "ABORT";
+        }
+        int qSeq = quorumSeq++;
+        ArrayList<QuorumNode> done = new ArrayList<>();
+        String request = "apply,"+ qSeq +","+value+ ",";
+        QuorumNode qNodes[] = new QuorumNode[nodes.size()];
+
+        request += myself.info.hostID;
+        int count = 0;
+        for(int i = 0; i < nodes.size(); i++){
+            request += ":"+nodes.get(i);
+            qNodes[i] = quorumNodes[nodes.get(i)];
+        }
+
+        QuorumInfra infra = new QuorumInfra(myself, qNodes);
+        curOp4Coordinator.opInitiate(infra,qSeq,value);
+
+        for (int id : nodes) {
+            QuorumNode node = quorumNodes[id];
+            if (isNeed2Crash(info.crashRate)) {
+                curOp4Coordinator.setStatus("GLOBAL_ABORT");
+                LogSys.debug("coordinator crashed in apply phase");
+                isAlive = false;
+                info.ifCrash = true;
+                out.println("fail");
+                for (QuorumNode n : done) {
+                    LogSys.debug("send COORDINATOR_CRASH to "+n.info.hostID);
+                    Util.sAr(n, "COORDINATOR_CRASH");
+                }
+                crashing();
+                coordinatorRestart();
+
+                return "ABORT";
+            }
+
+            String res = Util.sAr(node, request);
+            if (res.equals("READY") ) {
+                LogSys.debug("receive ready from node " + node.info.hostID +" "+res);
+                done.add(node);
+            } else {//might be abort or crashed
+                LogSys.debug("quorumWrite failed because of node " + node.info.hostID +" "+res);
+                for (QuorumNode n : done) {
+                    Util.sAr(n, "GLOBAL_ABORT");
+                }
+                out.println("fail");
+
+                return "ABORT";
+            }
+        }
+
+        return "success";
+    }
+
+    public String quorumPrecommit( PrintStream out) {
         ArrayList<QuorumNode> done = new ArrayList<>();
         curOp4Coordinator.setStatus("GLOBAL_PRECOMMIT");
         for (QuorumNode node : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
@@ -78,16 +138,20 @@ public class ThreePhase extends QuorumSys {
                 LogSys.debug("crashed");
                 isAlive = false;
                 info.ifCrash = true;
-
+                if(done.size() > 0){
+                    out.println("success");
+                }else{
+                    out.println("fail");
+                }
                 for (QuorumNode n : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
                     Util.sAr(n, "COORDINATOR_CRASH");
                 }
                 crashing();
                 if(coordinatorRestart()){
+
                     return "COMMIT";
                 }
                 return "ABORT";
-
             }
 
             String res = Util.sAr(node, "quorumPrecommit");
@@ -101,6 +165,7 @@ public class ThreePhase extends QuorumSys {
                 continue;
             }
         }
+
         return "CONTINUE";
     }
 
@@ -211,7 +276,6 @@ public class ThreePhase extends QuorumSys {
                 case "INIT":
                     return "ABORT";
                 case "COMMIT":
-                case "PRECOMMIT":
                     return "COMMIT";
                 case "READY":
                     break;
@@ -219,7 +283,6 @@ public class ThreePhase extends QuorumSys {
                     LogSys.debug("receive a unknown decision "+res);
                     break;
             }
-
         }
         // all is ready
         return "ABORT";
@@ -255,6 +318,39 @@ public class ThreePhase extends QuorumSys {
 
         return "success";
 
+    }
+
+
+    public boolean quorumCommit( PrintStream out) {
+        ArrayList<QuorumNode> done = new ArrayList<>();
+        curOp4Coordinator.setStatus("GLOBAL_COMMIT");
+        for (QuorumNode node : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
+            if (isNeed2Crash(info.crashRate)) {
+
+                LogSys.debug("crashed");
+                isAlive = false;
+                info.ifCrash = true;
+                out.println("success");
+
+                for (QuorumNode n : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
+                    Util.sAr(n, "COORDINATOR_CRASH");
+                }
+                crashing();
+                coordinatorRestart();
+                return true;
+            }
+            LogSys.debug("send quorumCommit to "+node.info.hostID);
+            String res = Util.sAr(node, "quorumCommit");
+            if (res.equals("COMMIT")) {
+                done.add(node);
+            } else if  (res.equals("crashed")){
+
+                LogSys.debug("node "+ node.info.hostID +" crashed");
+                continue;
+            }
+        }
+        out.println("success");
+        return true;
     }
 
 }

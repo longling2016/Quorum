@@ -25,8 +25,8 @@ public class Node {
     static final Object trigger = new Object();
 
     // config: TODO modify
-    static final int crashRate = 20;
-    static final int crashDuration = 1000;
+    static final int crashRate = 50;
+    static final int crashDuration = 2000;
 
     public static void main(String[] args) {
         try {

@@ -103,59 +103,7 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
         return isAlive;
     }
 
-    public boolean quorumApply(ArrayList<Integer> nodes, int value) {
-        if(nodes.size() == 0 ){
-            LogSys.debug("no quorum node in this op");
-            return true;
-        }
-        int qSeq = quorumSeq++;
-        ArrayList<QuorumNode> done = new ArrayList<>();
-        String request = "apply,"+ qSeq +","+value+ ",";
-        QuorumNode qNodes[] = new QuorumNode[nodes.size()];
 
-        request += myself.info.hostID;
-        int count = 0;
-        for(int i = 0; i < nodes.size(); i++){
-            request += ":"+nodes.get(i);
-            qNodes[i] = quorumNodes[nodes.get(i)];
-        }
-
-        QuorumInfra infra = new QuorumInfra(myself, qNodes);
-        curOp4Coordinator.opInitiate(infra,qSeq,value);
-
-        for (int id : nodes) {
-            QuorumNode node = quorumNodes[id];
-            if (isNeed2Crash(info.crashRate)) {
-                curOp4Coordinator.setStatus("GLOBAL_ABORT");
-                LogSys.debug("coordinator crashed in apply phase");
-                isAlive = false;
-                info.ifCrash = true;
-                for (QuorumNode n : done) {
-                    LogSys.debug("send COORDINATOR_CRASH to "+n.info.hostID);
-                    Util.sAr(n, "COORDINATOR_CRASH");
-                }
-                crashing();
-                coordinatorRestart();
-
-                return false;
-            }
-
-            String res = Util.sAr(node, request);
-            if (res.equals("READY") ) {
-                LogSys.debug("receive ready from node " + node.info.hostID +" "+res);
-                done.add(node);
-            } else {//might be abort or crashed
-                LogSys.debug("quorumWrite failed because of node " + node.info.hostID +" "+res);
-                for (QuorumNode n : done) {
-                    Util.sAr(n, "GLOBAL_ABORT");
-                }
-                return false;
-            }
-        }
-
-
-        return true;
-    }
 
     public ArrayList<Integer> chooseQuorumNodeList(QuorumNode[] nodeList, int num) {
 
@@ -244,37 +192,14 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
     public void execute() {
         Thread server = new Thread(this);
         server.start();
+//        if( this instanceof TwoPhase) {
+//            LogSys.debug("execute two phase finished");
+//        }else{
+//            LogSys.debug("execute three phase finished");
+//        }
     }
 
 
-    public boolean quorumCommit() {
-        ArrayList<QuorumNode> done = new ArrayList<>();
-        curOp4Coordinator.setStatus("GLOBAL_COMMIT");
-        for (QuorumNode node : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
-            if (isNeed2Crash(info.crashRate)) {
-                LogSys.debug("crashed");
-                isAlive = false;
-                info.ifCrash = true;
-
-                for (QuorumNode n : curOp4Coordinator.getQuorumInfra().getQuorumNodes()) {
-                    Util.sAr(n, "COORDINATOR_CRASH");
-                }
-                crashing();
-                coordinatorRestart();
-                return true;
-            }
-            LogSys.debug("send quorumCommit to "+node.info.hostID);
-            String res = Util.sAr(node, "quorumCommit");
-            if (res.equals("COMMIT")) {
-                done.add(node);
-            } else if  (res.equals("crashed")){
-
-                LogSys.debug("node "+ node.info.hostID +" crashed");
-                continue;
-            }
-        }
-        return true;
-    }
 
 
     public String recvQuorumApply(QuorumInfra infra, int qSeq, int value, PrintStream out){
@@ -299,7 +224,6 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
             info.ifCrash = true;
 
             out.println("crashed");
-
             crashing();
             qNodeRecover();
             return "";
@@ -412,13 +336,12 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
         ArrayList<QuorumServThd> threadsPool = new ArrayList<QuorumServThd>(threadsSize);
 
         while (true) {
-
             try {
                 session = ss.accept();
                 LogSys.debug(session.toString());
             } catch (IOException e) {
                 synchronized (isEnd) {
-                    if (isEnd || session == null){
+                    if (isEnd ){
                         LogSys.debug("thread end");
                         for (int i = 0; i < threadsPool.size(); i++) {
                             QuorumServThd t = threadsPool.get(i);
@@ -428,6 +351,8 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
                         return;
                     }
                 }
+                LogSys.debug("socket error");
+                continue;
             }
 
             QuorumServThd cur = null;
@@ -453,7 +378,7 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
             int timeout = 10000;
 
             try {
-                if(session != null) session.setSoTimeout(timeout);
+                session.setSoTimeout(timeout);
             } catch (SocketException e) {
                 e.printStackTrace();
             }
@@ -461,7 +386,6 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
             cur.setBusy();
             cur.setSession(session);
             cur.awake();
-
         }
 
 //        if (session != null) {
@@ -486,7 +410,7 @@ public abstract class QuorumSys implements ProtocolMode, Runnable {
         }
     }
 
-    public abstract boolean strictQuorumWrite( int value);
+    public abstract boolean strictQuorumWrite( int value, PrintStream out);
     public abstract String requestQuorumDecision();
     public abstract void qNodeRecover( );
     public abstract boolean coordinatorRestart( );

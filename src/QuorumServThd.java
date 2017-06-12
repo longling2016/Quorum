@@ -90,14 +90,15 @@ public class QuorumServThd implements Runnable {
                             break;
                         }
                         LogSys.debug("receive write request, value = " + Integer.valueOf(fc[1].trim()));
-                        if (quorumSys.strictQuorumWrite(Integer.valueOf(fc[1].trim()))) {
-                            out.println("success");
-                            LogSys.debug(" write success, value = " + Integer.valueOf(fc[1].trim()));
+//                        if (quorumSys.strictQuorumWrite(Integer.valueOf(fc[1].trim()),out).equals("success")) {
+//                            out.println("success");
+//                            LogSys.debug(" write success, value = " + Integer.valueOf(fc[1].trim()));
 
-                        } else {
-                            out.println("fail");
-                            LogSys.debug(" write fail, value = " + Integer.valueOf(fc[1].trim()));
-                        }
+//                        } else {
+//                            out.println("fail");
+//                            LogSys.debug(" write fail, value = " + Integer.valueOf(fc[1].trim()));
+//                        }
+                        quorumSys.strictQuorumWrite(Integer.valueOf(fc[1].trim()),out);
                         break;
                     case "apply":
                         if (!quorumSys.isAlive()) {
